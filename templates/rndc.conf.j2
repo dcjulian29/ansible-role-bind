@@ -1,0 +1,11 @@
+key "rndc-key" {
+  algorithm {{ bind_rndc_algorithm }};
+  secret "{{ bind_rndc_key }}";
+};
+
+
+options {
+  default-key "rndc-key";
+  default-server localhost;
+  default-port 953;
+};

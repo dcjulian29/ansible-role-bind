@@ -1,0 +1,7 @@
+---
+- name: Converge
+  hosts: all
+  tasks:
+    - name: "Include dcjulian29.bind"
+      ansible.builtin.include_role:
+        name: "dcjulian29.bind"

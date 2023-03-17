@@ -1,0 +1,27 @@
+$ORIGIN {{ zone.name }}.
+$TTL {{ zone.default_ttl | default('3600') }}
+
+@                         IN  SOA     {{ zone_primary }} {{ zone_admin }} (
+                                      {{ '%-10s' | format(zone.serial) }} ; Serial
+                                      {{ '%-10s' | format(zone.refresh | default('14400')) }} ; Refresh TTL
+                                      {{ '%-10s' | format(zone.retry | default('3600')) }} ; Retry TTL
+                                      {{ '%-10s' | format(zone.expire | default('604800')) }} ; Expire TTL
+                                      {{ '%-10s' | format(zone.minimum | default('10800')) }} ; Negative Cache TTL
+                                      )
+{% for data in zone.nameserver %}
+@                         IN  NS      {{ data }}
+{% endfor %}{% if zone.address_ipv4 is defined %}{% for data in zone.address_ipv4 %}
+@                         IN  A       {{ data }}
+{% endfor %}{% endif %}{% if zone.address_ipv6 is defined %}{% for data in zone.address_ipv6 %}
+@                         IN  AAAA    {{ data }}
+{% endfor %}{% endif %}{% if zone.mail is defined %}{% for data in zone.mail %}
+@                         IN  MX      {{ data.priority | default('10') }} {{ data.name }}.
+{% endfor %}{% endif %}{% if zone.text is defined %}{% for data in zone.text %}
+@                         IN  TXT     "{{ data }}"
+{% endfor %}{% endif %}{% if zone.certificate is defined %}{% for data in zone.certificate %}
+@                         IN  CAA     {{ data }}
+{% endfor %}{% endif %}
+
+{% for r in zone.resources %}
+{{ "{:<16}  {:6}  IN  {:<5}  {}".format(r.label, r.ttl | default(''), r.type | default ('A'), r.data) }}
+{% endfor %}

@@ -1,0 +1,18 @@
+---
+- name: Remove Bind
+  ansible.builtin.command: "docker rm {{ bind_name }}"
+  register: results
+  failed_when: >-
+    results is failed and
+    "No such container" not in results.stderr | default(false)
+  changed_when: >-
+    'No such container' not in results.stderr | default(false)
+
+- name: Restart systemd-resolved
+  ansible.builtin.command: systemctl stop systemd-resolved
+  when:
+    - ansible_facts.services["systemd-resolved.service"].state | default('') == 'running'
+
+# Has to be below "systemd-resolved" because handlers run in the same order as listed in this file
+- name: Restart Bind
+  ansible.builtin.command: "docker restart {{ bind_name }}"

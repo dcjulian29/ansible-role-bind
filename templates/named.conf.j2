@@ -1,0 +1,194 @@
+{% for acl in bind_acls %}
+acl "{{ acl.name }}" {
+{% for match in acl.matches %}
+  {{ match }};
+{% endfor %}
+};
+
+{% endfor %}{% if bind_recursive and bind_recursive_allow | length > 0 %}
+acl "allow_queries" {
+{% for network in bind_recursive_allow %}
+  {{ network }};
+{% endfor %}
+};
+
+{% endif %}{% if bind_recursive and bind_recursive_transfers | length > 0 %}
+acl "allow_transfers" {
+{% for network in bind_recursive_transfers %}
+  {{ network }};
+{% endfor %}
+};
+
+{% endif %}{% if bind_logging | length > 0 %}
+logging {
+{% for item in bind_logging %}
+{% for channel in item.channels %}
+
+  channel {{ channel.name }}_log {
+{% if not channel.stderr | default(false) %}
+    file "/var/log/{{ channel.name }}.log" versions {{ channel.versions | default('3') }} size {{ channel.size | default('20m') }};
+{% endif %}
+    severity {{ channel.severity | default('info') }};
+    print-category {{ 'yes' if channel.print_category | default(false) else 'no' }};
+    print-severity yes;
+    print-time yes;
+{% if channel.stderr | default(false) %}
+    stderr;
+{% endif %}
+  };
+{% endfor %}{% for category in item.categories %}
+
+  category {{ category.name }} { {% for destination in category.destinations %}{{ destination + '_log; ' }}{% endfor %}};
+{% endfor %}{% endfor %}
+};
+
+{% endif %}
+options {
+  directory "/var/cache/bind";
+
+{% if bind_forwarders | length > 0 %}
+  forwarders {
+    {% for forwarder in bind_forwarders %}
+      {{ forwarder }};
+    {% endfor %}
+  };
+
+{% endif %}
+  dnssec-validation {{ bind_dnssec_validation }};
+  qname-minimization {{ bind_qname_minimization }};
+  auth-nxdomain no; # RFC1035
+  listen-on-v6 {
+    any;
+  };
+
+  recursion {{ 'yes' if bind_recursive else 'no' }};
+
+  allow-recursion {
+    {{ 'allow_queries' if bind_recursive else 'none' }};
+  };
+
+  allow-query {
+    {{ 'allow_transfers' if bind_recursive else 'none' }};
+  };
+{% if bind_primary %}
+
+  allow-transfer {
+    allow_transfers;
+  };
+{% endif %}{% if not bind_secondary and bind_secondaries | length > 0 %}
+
+  also-notify {
+{% for host in bind_secondaries %}
+    {{ host }};
+{% endfor %}
+  };
+{% if bind_notify_explicit %}
+
+  notify explicit;
+{% endif %}{% endif %}{% if bind_dnssec %}
+
+  key-directory "/etc/bind/keys";
+{% endif %}
+};
+{% if bind_rndc_key | length > 0 %}
+
+controls {
+        inet 0.0.0.0 allow { {{ bind_rndc_scope }}; } keys { "rndc-key"; };
+};
+
+key "rndc-key" {
+  algorithm {{ bind_rndc_algorithm }};
+  secret "{{ bind_rndc_key }}";
+};
+{% endif %}
+{% for key in bind_keys %}
+
+key "{{ key.name }}" {
+  algorithm {{ key.algorithm | default('hmac-sha256') }};
+  secret "{{ key.secret | default('') }}";
+};
+{% endfor %}
+{% if bind_zones | selectattr('update_key_secret', 'defined') %}
+{% for zone in bind_zones | selectattr('update_key_secret', 'defined') %}
+{% if zone.type | default('master') == 'master' %}
+
+key "{{ zone.name }}_ddns_update" {
+  algorithm {{ zone.update_key_algorithm | default('hmac-sha256') }};
+  secret "{{ zone.update_key_secret | default() }}";
+};
+{% endif %}
+{% endfor %}
+{% endif %}
+{% for zone in bind_zones | sort(attribute='name') %}
+
+zone "{{ zone.name }}" {
+  type {{ zone.type | default('primary') }};
+{% if zone.type | default('primary') != 'forward' %}
+  file "/var/lib/bind/db.{{ zone.name }}";
+{% endif %}{% if zone.type | default('primary') == 'primary' %}
+{% if bind_notify_explicit %}
+  notify explicit;
+{% else %}{% if zone.notify | default(true) %}
+  notify yes;
+{% else %}
+  notify no;
+{% endif %}{% endif %}{% if (bind_dnssec or (zone.dnssec | default(false))) %}
+  auto-dnssec maintain;
+  inline-signing yes;
+{% endif %}{% if zone.update_policy_grant | default(false) %}
+  update-policy {
+    grant {{ zone.name }}_ddns_update {{ zone.update_policy_grant }};
+  };
+{% endif %}{% endif %}{% if zone.type | default('primary') == 'secondary' %}
+  notify no;
+  masterfile-format text;
+  primaries {
+{% for addr in zone.primaries %}
+    {{ addr }};
+{% endfor %}
+  };
+{% endif %}{% if zone.type | default('primary') == 'forward' %}
+  forwarders {
+{% for addr in zone.forwarders %}
+  {{ addr }};
+{% endfor %}
+  };
+{% endif %}
+};
+{% endfor %}{% if bind_recursive %}
+
+zone "." {
+  type hint;
+  file "/usr/share/dns/root.hints";
+};
+{% endif %}{% if bind_rfc1912 %}
+
+#>>>> RFC 1912
+zone "localhost"            { type master; file "/var/lib/bind/db.local"; };
+zone "127.in-addr.arpa"     { type master; file "/var/lib/bind/db.127"; };
+zone "0.in-addr.arpa"       { type master; file "/var/lib/bind/db.broadcast"; };
+zone "255.in-addr.arpa"     { type master; file "/var/lib/bind/db.broadcast"; };
+#<<<< RFC 1912
+{% endif %}{% if bind_rfc1918 %}
+
+#>>>> RFC 1918
+zone "10.in-addr.arpa"      { type master; file "/var/lib/bind/db.empty"; };
+zone "16.172.in-addr.arpa"  { type master; file "/var/lib/bind/db.empty"; };
+zone "17.172.in-addr.arpa"  { type master; file "/var/lib/bind/db.empty"; };
+zone "18.172.in-addr.arpa"  { type master; file "/var/lib/bind/db.empty"; };
+zone "19.172.in-addr.arpa"  { type master; file "/var/lib/bind/db.empty"; };
+zone "20.172.in-addr.arpa"  { type master; file "/var/lib/bind/db.empty"; };
+zone "21.172.in-addr.arpa"  { type master; file "/var/lib/bind/db.empty"; };
+zone "22.172.in-addr.arpa"  { type master; file "/var/lib/bind/db.empty"; };
+zone "23.172.in-addr.arpa"  { type master; file "/var/lib/bind/db.empty"; };
+zone "24.172.in-addr.arpa"  { type master; file "/var/lib/bind/db.empty"; };
+zone "25.172.in-addr.arpa"  { type master; file "/var/lib/bind/db.empty"; };
+zone "26.172.in-addr.arpa"  { type master; file "/var/lib/bind/db.empty"; };
+zone "27.172.in-addr.arpa"  { type master; file "/var/lib/bind/db.empty"; };
+zone "28.172.in-addr.arpa"  { type master; file "/var/lib/bind/db.empty"; };
+zone "29.172.in-addr.arpa"  { type master; file "/var/lib/bind/db.empty"; };
+zone "30.172.in-addr.arpa"  { type master; file "/var/lib/bind/db.empty"; };
+zone "31.172.in-addr.arpa"  { type master; file "/var/lib/bind/db.empty"; };
+zone "168.192.in-addr.arpa" { type master; file "/var/lib/bind/db.empty"; };
+#<<<< RFC 1918
+{% endif %}

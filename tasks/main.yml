@@ -1,0 +1,162 @@
+# code: language=ansible
+---
+- name: Include OS-specific variables
+  ansible.builtin.include_vars: "{{ ansible_os_family | lower }}.yml"
+
+- name: Update Package Cache on APT based systems
+  ansible.builtin.apt:
+    update_cache: true
+  changed_when: false
+  when: ansible_pkg_mgr == "apt"
+
+- name: Install DNS utility package
+  ansible.builtin.package:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ bind_packages }}"
+
+- name: Retrive service facts
+  ansible.builtin.service_facts:
+
+- name: Ensure directories for the container exist
+  ansible.builtin.file:
+    mode: "0755"
+    owner: root
+    path: "{{ item.host }}"
+    state: directory
+  with_items: "{{ bind_volume_paths }}"
+  when: not (bind_logging | length == 0 and item.container == '/var/log')
+
+- name: Pull Bind docker image.
+  community.docker.docker_image:
+    name: "{{ bind_image }}"
+    source: pull
+    tag: "{{ bind_version }}"
+  notify: Remove Bind
+
+- name: Ensure all handlers run before continuing
+  ansible.builtin.meta: flush_handlers
+
+- name: Build volume list in a format docker understands
+  ansible.builtin.set_fact:
+    bind_volume: "{{ bind_volume | default([]) + [item.host + ':' + item.container] }}"
+  loop: "{{ bind_volume_paths }}"
+  when: not (bind_logging | length == 0 and item.container == '/var/log')
+
+- name: Ensure Bind container is created
+  community.docker.docker_container:
+    command: "{{ bind_command }}"
+    container_default_behavior: no_defaults
+    detach: true
+    image: "{{ bind_image }}:{{ bind_version }}"
+    interactive: false
+    name: "{{ bind_name }}"
+    ports:
+      - "{{ bind_port_udp }}:53/udp"
+      - "{{ bind_port_tcp }}:53/tcp"
+      - "127.0.0.1:953:953/tcp"
+    restart_policy: always
+    state: present
+    volumes: "{{ bind_volume }}"
+  notify: Restart Bind
+  register: bind_docker
+
+- name: Include default zone files
+  ansible.builtin.copy:
+    dest: "{{ bind_zone_dir }}/"
+    mode: "0644"
+    owner: root
+    src: "{{ item }}"
+  loop:
+    - db.127
+    - db.broadcast
+    - db.empty
+    - db.local
+  when: bind_rfc1912
+  notify: Restart Bind
+
+- name: Ensure bind configuration is correct
+  ansible.builtin.template:
+    dest: "{{ bind_config_dir }}/named.conf"
+    mode: "0640"
+    owner: root
+    src: named.conf.j2
+  notify: Restart Bind
+
+- name: Include static primary zone files
+  ansible.builtin.copy:
+    dest: "{{ bind_zone_dir }}/"
+    mode: "0644"
+    owner: root
+    src: "{{ item }}"
+  loop: "{{ bind_zone_files }}"
+  when: bind_zone_files | length > 0
+
+- name: Ensure key directory exists
+  ansible.builtin.file:
+    mode: "0600"
+    owner: root
+    path: "{{ bind_config_dir }}/keys/"
+    state: directory
+
+- name: Include static primary update key files
+  ansible.builtin.copy:
+    dest: "{{ bind_config_dir }}/keys/{{ item.update_keyfile }}"
+    mode: "0600"
+    owner: root
+    src: "{{ item.update_keyfile }}"
+  loop: "{{ bind_zones }}"
+  loop_control:
+    loop_var: zone
+  when:
+    - bind_zones | length > 0
+    - zone.update_keyfile is defined
+    - zone.type | default('master') == 'master'
+  notify: Restart Bind
+
+- name: Create dynamic primary zone files
+  ansible.builtin.template:
+    dest: "{{ bind_zone_dir }}/db.{{ zone.name }}"
+    mode: "0644"
+    owner: root
+    src: db.zone.j2
+  loop: "{{ bind_zones }}"
+  loop_control:
+    loop_var: zone
+  when:
+    - bind_zones | length > 0
+    - zone.serial is defined
+    - zone.type | default('master') == 'master'
+  vars:
+    zone_primary: "{{ zone.primary | default(zone.nameserver[0]) }}"
+    zone_admin: "{{ zone.admin | default('hostmaster.' + zone.name) }}"
+  notify: Restart Bind
+
+- name: Ensure bind rndc key is configured
+  ansible.builtin.template:
+    dest: "{{ bind_config_dir }}/rndc.conf"
+    mode: "0640"
+    owner: root
+    src: rndc.conf.j2
+  when: bind_rndc_key | length > 0
+
+- name: Enable rndc to work on host system
+  ansible.builtin.file:
+    dest: /etc/bind
+    owner: root
+    src: "{{ bind_config_dir }}"
+    state: link
+  when: bind_rndc_key | length > 0
+
+- name: Ensure the DNS Stub Listener is not enabled
+  ansible.builtin.lineinfile:
+    path: /etc/systemd/resolved.conf
+    regexp: "^DNSStubListener"
+    line: DNSStubListener=no
+  notify: Restart systemd-resolved
+  when:
+    - ansible_facts.services["systemd-resolved.service"]is defined
+    - bind_port_udp == 53
+
+- name: Ensure all handlers run before continuing
+  ansible.builtin.meta: flush_handlers

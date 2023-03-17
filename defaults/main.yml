@@ -1,0 +1,186 @@
+---
+bind_acls:
+  - name: default
+    matches:
+      - "{{ ansible_facts.default_ipv4.network + '/' + ansible_facts.default_ipv4.prefix }}"
+bind_command: "{{ '/usr/sbin/named ' + ('-f' if bind_logging | length > 0 else '-g') + ' -c /etc/bind/named.conf -u root' }}"
+bind_config_dir: "{{ bind_data_dir}}/{{ bind_name }}/config"
+bind_data_dir: /opt
+bind_dnssec: false
+bind_dnssec_validation: auto  # (yes/no/auto)
+bind_qname_minimization: relaxed
+bind_forwarders:
+  - 8.8.8.8
+  - 1.1.1.1
+bind_image: internetsystemsconsortium/bind9
+bind_keys:
+  - name: host1
+    secret: DAopyf1mhCbFVZw7pgmNPBoLUq8wEUT7UuPoLENP2HY=
+bind_logging:
+  - channels:
+      - name: default
+        versions: 3
+        size: 20m
+        severity: info
+      - name: console
+        stderr: true
+        print_category: false
+      - name: auth_servers
+        versions: 10
+      - name: dnssec
+      - name: zone_transfers
+      - name: ddns
+      - name: client_security
+      - name: rate_limiting
+      - name: queries
+        versions: 5
+        size: 50m
+      - name: query-errors
+        severity: dynamic
+    categories:
+      - name: default
+        destinations:
+          - default
+          - console
+      - name: config
+        destinations:
+          - default
+          - console
+      - name: dispatch
+        destinations:
+          - default
+      - name: network
+        destinations:
+          - default
+      - name: general
+        destinations:
+          - default
+          - console
+      - name: zoneload
+        destinations:
+          - default
+      - name: resolver
+        destinations:
+          - auth_servers
+      - name: cname
+        destinations:
+          - auth_servers
+      - name: delegation-only
+        destinations:
+          - auth_servers
+      - name: lame-servers
+        destinations:
+          - auth_servers
+      - name: edns-disabled
+        destinations:
+          - auth_servers
+      - name: dnssec
+        destinations:
+          - dnssec
+      - name: notify
+        destinations:
+          - zone_transfers
+      - name: xfer-in
+        destinations:
+          - zone_transfers
+      - name: xfer-out
+        destinations:
+          - zone_transfers
+      - name: update
+        destinations:
+          - ddns
+      - name: update-security
+        destinations:
+          - ddns
+      - name: client
+        destinations:
+          - client_security
+          - default
+      - name: security
+        destinations:
+          - client_security
+      - name: rate-limit
+        destinations:
+          - rate_limiting
+      - name: spill
+        destinations:
+          - rate_limiting
+      - name: database
+        destinations:
+          - rate_limiting
+      - name: queries
+        destinations:
+          - queries
+      - name: query-errors
+        destinations:
+          - query-errors
+bind_name: bind
+bind_notify_explicit: false
+bind_port_tcp: 53
+bind_port_udp: 53
+bind_primary: true
+bind_recursive: true
+bind_recursive_allow:
+  - localhost
+  - localnets
+bind_recursive_transfers:
+  - localhost
+  - localnets
+bind_rfc1912: true
+bind_rfc1918: true
+bind_rndc_algorithm: hmac-sha256
+bind_rndc_key: 'mYEd5jh/WmY0Rq0EQG/uDn6vlIq7aZ8Nk1+Vl91Q6pg='
+bind_rndc_scope: localnets
+bind_secondary: false
+bind_secondaries: []
+#  - 172.16.1.4
+bind_version: 9.18
+bind_volume_paths:
+  - host: "{{ bind_config_dir }}"
+    container: "/etc/bind"
+  - host: "{{ bind_data_dir}}/{{ bind_name }}/cache"
+    container: "/var/cache/bind"
+  - host: "{{ bind_zone_dir}}"
+    container: "/var/lib/bind"
+  - host: "{{ bind_data_dir}}/{{ bind_name }}/logs"
+    container: "/var/log"
+bind_zones: []
+#  # secondary zone
+#  - name: other.example.com
+#    type: secondary
+#    primaries:
+#      - 192.168.1.2
+#      - 192.168.1.3
+#  # primary zone static
+#  - name: example.com
+#  # primary zone dynamic
+#  - name: test.example.com
+#    serial: "{{ ansible_date_time.epoch_int }}"
+#    admin: hostmaster.example.com
+#    nameserver:
+#      - ns1.example.com.
+#      - ns2.example.com.
+#    address_ipv4:
+#      - 192.168.0.5
+#    address_ipv6:
+#      -  fd73:20ca:46ec:304b::6
+#    mail:
+#      - priority: 10
+#        name: mail.example.com
+#      - priority: 20
+#        name: mail2.example.com
+#    certificate:
+#      - 0 issue "pki.example.com"
+#    resources:
+#      - { label: ns1, data: 192.168.0.2 }
+#      - { label: ns2, data: 192.168.0.3 }
+#      - { label: server1, data: 192.168.0.6}
+#      - { label: server1, type: AAAA, data: fd73:20ca:46ec:304b::6}
+#      - { label: server2, data: 192.168.0.7}
+#      - { label: ftp, data: 192.168.0.4 }
+#      - { label: mail, type: A, data: 192.168.0.6 }
+#      - { label: mail2, type: A, data: 192.168.0.7 }
+#      - { label: www, ttl: 86400, type: CNAME, data: server1 }
+bind_zone_dir: "{{ bind_data_dir}}/{{ bind_name }}/zones"
+bind_zone_files: []
+#  - db.example.com
