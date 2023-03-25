@@ -13,9 +13,9 @@ bind_forwarders:
   - 8.8.8.8
   - 1.1.1.1
 bind_image: internetsystemsconsortium/bind9
-bind_keys:
-  - name: host1
-    secret: DAopyf1mhCbFVZw7pgmNPBoLUq8wEUT7UuPoLENP2HY=
+bind_keys: []
+# - name: host1
+#   secret: DAopyf1mhCbFVZw7pgmNPBoLUq8wEUT7UuPoLENP2HY=
 bind_logging:
   - channels:
       - name: default
