@@ -93,7 +93,7 @@ options {
 {% if bind_rndc_key | length > 0 %}
 
 controls {
-        inet 0.0.0.0 allow { {{ bind_rndc_scope }}; } keys { "rndc-key"; };
+  inet 0.0.0.0 allow { {{ bind_rndc_scope }}; } keys { "rndc-key"; };
 };
 
 key "rndc-key" {
@@ -148,9 +148,10 @@ zone "{{ zone.name }}" {
 {% endfor %}
   };
 {% endif %}{% if zone.type | default('primary') == 'forward' %}
+  forward only;
   forwarders {
 {% for addr in zone.forwarders %}
-  {{ addr }};
+    {{ addr }};
 {% endfor %}
   };
 {% endif %}
