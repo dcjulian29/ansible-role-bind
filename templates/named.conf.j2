@@ -68,12 +68,14 @@ options {
   };
 
   allow-query {
-    {{ 'allow_transfers' if bind_recursive else 'none' }};
+    {{ 'none' if not bind_recursive }}
+    {{ 'allow_queries' if bind_recursive and bind_recursive_allow | length > 0 }};
+    {{ 'allow_transfers' if bind_recursive and bind_recursive_transfers | length > 0 }};
   };
 {% if bind_primary %}
 
   allow-transfer {
-    allow_transfers;
+    {{ 'allow_transfers' if bind_recursive_transfers | length > 0 else 'none' }};
   };
 {% endif %}{% if not bind_secondary and bind_secondaries | length > 0 %}
 
