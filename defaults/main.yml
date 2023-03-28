@@ -116,6 +116,8 @@ bind_logging:
           - query-errors
 bind_name: bind
 bind_notify_explicit: false
+bind_package_latest: true
+bind_package_state: "{{ bind_package_latest | ternary('latest', 'present') }}"
 bind_port_tcp: 53
 bind_port_udp: 53
 bind_primary: true
