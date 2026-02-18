@@ -136,7 +136,7 @@ bind_rndc_scope: localnets
 bind_secondary: false
 bind_secondaries: []
 #  - 172.16.1.4
-bind_version: 9.18
+bind_version: 9.21
 bind_volume_paths:
   - host: "{{ bind_config_dir }}"
     container: "/etc/bind"
