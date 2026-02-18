@@ -1,12 +1,13 @@
 ---
-- name: Include OS-specific variables
-  ansible.builtin.include_vars: "{{ ansible_os_family | lower }}.yml"
-
-- name: Update Package Cache on APT based systems
-  ansible.builtin.apt:
-    update_cache: true
-  changed_when: false
-  when: ansible_pkg_mgr == "apt"
+- name: Include OS-specific variables.
+  ansible.builtin.include_vars: "{{ lookup('ansible.builtin.first_found', params) }}"
+  vars:
+    params:
+      files:
+        - "{{ ansible_facts['distribution'] | lower }}.yml"
+        - "{{ ansible_facts['os_family'] | lower }}.yml"
+      paths:
+        - vars
 
 - name: Install DNS utility package
   ansible.builtin.package:
@@ -28,6 +29,7 @@
 
 - name: Pull Bind docker image.
   community.docker.docker_image:
+    force_source: true
     name: "{{ bind_image }}"
     source: pull
     tag: "{{ bind_version }}"
