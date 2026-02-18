@@ -1,6 +1,6 @@
 ---
 - name: Remove Bind
-  ansible.builtin.command: "docker rm {{ bind_name }}"
+  ansible.builtin.command: "docker stop {{ bind_name }} && docker rm {{ bind_name }}"
   register: results
   failed_when: >-
     results is failed and
